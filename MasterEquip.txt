@@ -1,0 +1,135 @@
+--// Services
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+--// --- V22 CONFIGURATION (DEFINITIVE & CORRECTED) ---
+local EVENTS_FOLDER = ReplicatedStorage:WaitForChild("events")
+
+--// [CONFIRMED] The RemoteFunction that primes the server with custom weapon data.
+local PRIME_WEAPON_DATA = EVENTS_FOLDER:WaitForChild("rerollItem") 
+
+--// [CONFIRMED] Standard remotes for equipping and rendering.
+local EQUIP_ITEM_REMOTE = EVENTS_FOLDER:WaitForChild("equipItem")
+local RENDER_VARIANT_REMOTE = EVENTS_FOLDER:WaitForChild("renderVariant")
+
+--// --- STATE & DATA CACHE ---
+local LOCAL_PLAYER = Players.LocalPlayer
+local masterWeaponMap = {}
+local availablePerks = {}
+local guiVisible = false
+local isGuiPopulated = false
+local selectedWeapon = nil
+
+--// --- DATA ENGINE (Dynamic & Comprehensive) ---
+local function buildMasterData()
+    local itemDataModule = ReplicatedStorage.modules:FindFirstChild("itemData")
+    if not itemDataModule then
+        warn("--> MasterEquipperGUI_V22: CRITICAL ERROR - 'itemData' module not found.")
+        return
+    end
+    local itemData = require(itemDataModule)
+    local perkSet = {}
+    for itemName, data in pairs(itemData) do
+        if typeof(data) == "table" then
+            if data.itemType == "weapons" then
+                masterWeaponMap[itemName] = { type = "base", base = itemName }
+            elseif data.itemType == "variants" then
+                local baseName = data.itemSubtype
+                if typeof(baseName) == "string" then
+                    masterWeaponMap[itemName] = { type = "variant", base = baseName }
+                    local prefix = itemName:match("^(%w+) ")
+                    if prefix and not perkSet[prefix] then
+                        perkSet[prefix] = true
+                        table.insert(availablePerks, prefix)
+                    end
+                end
+            end
+        end
+    end
+    table.sort(availablePerks)
+    local count = 0; for _ in pairs(masterWeaponMap) do count = count + 1 end
+    print(string.format("--> MasterEquipperGUI_V22: Database built. %d items categorized.", count))
+    print(string.format("--> Discovered %d unique perks: %s", #availablePerks, table.concat(availablePerks, ", ")))
+end
+
+--// --- GUI CONSTRUCTION (Polished) ---
+local screenGui = Instance.new("ScreenGui"); screenGui.Name = "MasterEquipperGUI"; screenGui.ResetOnSpawn = false; screenGui.Parent = LOCAL_PLAYER:WaitForChild("PlayerGui")
+local mainFrame = Instance.new("Frame"); mainFrame.Name = "MainFrame"; mainFrame.Size = UDim2.new(0, 650, 0, 450); mainFrame.Position = UDim2.new(0.5, -325, 0.5, -225); mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30); mainFrame.BorderColor3 = Color3.fromRGB(80, 80, 80); mainFrame.Active = true; mainFrame.Draggable = true; mainFrame.Visible = false; mainFrame.Parent = screenGui
+local titleLabel = Instance.new("TextLabel"); titleLabel.Name = "TitleLabel"; titleLabel.Size = UDim2.new(1, 0, 0, 30); titleLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40); titleLabel.Text = "Master Equipper V22 (Invocation Fix)"; titleLabel.Font = Enum.Font.SourceSansBold; titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255); titleLabel.TextSize = 18; titleLabel.Parent = mainFrame
+local weaponListFrame = Instance.new("Frame"); weaponListFrame.Name = "WeaponListFrame"; weaponListFrame.Size = UDim2.new(0, 250, 1, -30); weaponListFrame.Position = UDim2.new(0, 0, 0, 30); weaponListFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35); weaponListFrame.BorderSizePixel = 0; weaponListFrame.Parent = mainFrame
+local scrollingFrame = Instance.new("ScrollingFrame"); scrollingFrame.Name = "WeaponList"; scrollingFrame.Size = UDim2.new(1, 0, 1, 0); scrollingFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35); scrollingFrame.ScrollBarThickness = 8; scrollingFrame.Parent = weaponListFrame
+local listLayout = Instance.new("UIListLayout"); listLayout.Padding = UDim.new(0, 5); listLayout.SortOrder = Enum.SortOrder.Name; listLayout.Parent = scrollingFrame
+local editorFrame = Instance.new("Frame"); editorFrame.Name = "EditorFrame"; editorFrame.Size = UDim2.new(1, -260, 1, -40); editorFrame.Position = UDim2.new(0, 260, 0, 35); editorFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45); editorFrame.BorderSizePixel = 0; editorFrame.Parent = mainFrame
+local editorLayout = Instance.new("UIGridLayout"); editorLayout.CellSize = UDim2.new(0.5, -5, 0.5, -5); editorLayout.CellPadding = UDim2.new(0, 10, 0, 10); editorLayout.StartCorner = Enum.StartCorner.TopLeft; editorLayout.Parent = editorFrame
+local editorPadding = Instance.new("UIPadding"); editorPadding.PaddingTop = UDim.new(0, 10); editorPadding.PaddingLeft = UDim.new(0, 10); editorPadding.PaddingRight = UDim.new(0, 10); editorPadding.Parent = editorFrame
+local perkFrame = Instance.new("Frame"); perkFrame.Name = "PerkFrame"; perkFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); perkFrame.BorderSizePixel = 0; perkFrame.Parent = editorFrame
+local perkLayout = Instance.new("UIListLayout"); perkLayout.Padding = UDim.new(0, 5); perkLayout.Parent = perkFrame
+local perkTitle = Instance.new("TextLabel"); perkTitle.Size = UDim2.new(1,0,0,20); perkTitle.Text = "Perks"; perkTitle.Font=Enum.Font.SourceSansBold; perkTitle.TextColor3=Color3.fromRGB(255,255,255); perkTitle.BackgroundColor3=Color3.fromRGB(65,65,65); perkTitle.Parent = perkFrame
+local perkCheckboxes = {}
+local attributeFrame = Instance.new("Frame"); attributeFrame.Name = "AttributeFrame"; attributeFrame.BackgroundColor3 = Color3.fromRGB(55, 55, 55); attributeFrame.BorderSizePixel = 0; attributeFrame.Parent = editorFrame
+local attributeLayout = Instance.new("UIListLayout"); attributeLayout.Padding = UDim.new(0, 5); attributeLayout.Parent = attributeFrame
+local attributeTitle = Instance.new("TextLabel"); attributeTitle.Size = UDim2.new(1,0,0,20); attributeTitle.Text = "Attributes"; attributeTitle.Font=Enum.Font.SourceSansBold; attributeTitle.TextColor3=Color3.fromRGB(255,255,255); attributeTitle.BackgroundColor3=Color3.fromRGB(65,65,65); attributeTitle.Parent = attributeFrame
+local attributeCheckboxes = {}
+local selectedWeaponLabel = Instance.new("TextLabel"); selectedWeaponLabel.Name = "SelectedWeaponLabel"; selectedWeaponLabel.Size = UDim2.new(1, 0, 0, 25); selectedWeaponLabel.LayoutOrder = -2; selectedWeaponLabel.Font = Enum.Font.SourceSansBold; selectedWeaponLabel.Text = "Selected: None"; selectedWeaponLabel.TextColor3 = Color3.fromRGB(255, 255, 255); selectedWeaponLabel.TextSize = 16; selectedWeaponLabel.BackgroundColor3 = Color3.fromRGB(55, 55, 55); selectedWeaponLabel.Parent = perkFrame
+local levelInput = Instance.new("TextBox"); levelInput.Name = "LevelInput"; levelInput.Size = UDim2.new(1, 0, 0, 25); levelInput.LayoutOrder = -1; levelInput.Font = Enum.Font.SourceSans; levelInput.Text = "200"; levelInput.PlaceholderText = "Level (1-200)"; levelInput.TextColor3 = Color3.fromRGB(255, 255, 255); levelInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30); levelInput.Parent = perkFrame
+local equipButton = Instance.new("TextButton"); equipButton.Name = "EquipButton"; equipButton.Size = UDim2.new(1, -270, 0, 30); equipButton.Position = UDim2.new(0, 260, 1, -35); equipButton.BackgroundColor3 = Color3.fromRGB(83, 12, 255); equipButton.Font = Enum.Font.SourceSansBold; equipButton.Text = "ARCHITECT WEAPON"; equipButton.TextColor3 = Color3.fromRGB(255, 255, 255); equipButton.TextSize = 16; equipButton.Parent = mainFrame
+local function createCheckbox(name, parentFrame, dataTable) local checkBox = Instance.new("TextButton"); checkBox.Name = name; checkBox.Size = UDim2.new(1, 0, 0, 22); checkBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60); checkBox.Text = "  " .. name .. " [OFF]"; checkBox.Font = Enum.Font.SourceSans; checkBox.TextColor3 = Color3.fromRGB(200, 200, 200); checkBox.TextSize = 14; checkBox.TextXAlignment = Enum.TextXAlignment.Left; checkBox.Parent = parentFrame; checkBox.AutoButtonColor = false; dataTable[name] = { Button = checkBox, Enabled = false }; checkBox.MouseButton1Click:Connect(function() local data = dataTable[name]; data.Enabled = not data.Enabled; checkBox.Text = "  " .. name .. (data.Enabled and " [ON]" or " [OFF]"); checkBox.TextColor3 = data.Enabled and Color3.fromRGB(12, 255, 137) or Color3.fromRGB(200, 200, 200) end) end
+
+--// --- DYNAMIC GUI POPULATION ---
+local function populateGui()
+    if isGuiPopulated then return end
+    isGuiPopulated = true
+    for _, perkName in ipairs(availablePerks) do createCheckbox(perkName, perkFrame, perkCheckboxes) end
+    createCheckbox("traceRifle", attributeFrame, attributeCheckboxes); createCheckbox("firefly", attributeFrame, attributeCheckboxes)
+    local sortedWeaponNames = {}; for weaponName in pairs(masterWeaponMap) do table.insert(sortedWeaponNames, weaponName) end; table.sort(sortedWeaponNames)
+    for _, itemName in ipairs(sortedWeaponNames) do
+        local button = Instance.new("TextButton"); button.Name = itemName; button.Size = UDim2.new(1, -10, 0, 25); button.BackgroundColor3 = Color3.fromRGB(50, 50, 50); button.Text = itemName; button.Font = Enum.Font.SourceSans; button.TextColor3 = Color3.fromRGB(220, 220, 220); button.TextSize = 14; button.TextXAlignment = Enum.TextXAlignment.Left; button.Parent = scrollingFrame
+        local padding = Instance.new("UIPadding"); padding.PaddingLeft = UDim.new(0, 10); padding.Parent = button
+        button.MouseButton1Click:Connect(function() selectedWeapon = itemName; selectedWeaponLabel.Text = "Selected: " .. itemName; local info = masterWeaponMap[itemName]; selectedWeaponLabel.TextColor3 = (info.type == "variant") and Color3.fromRGB(200, 150, 255) or Color3.fromRGB(12, 255, 137) end)
+    end
+    task.wait(); scrollingFrame.CanvasSize = UDim2.fromOffset(0, listLayout.AbsoluteContentSize.Y)
+end
+
+--// --- CORE LOGIC: DUAL-PROTOCOL EQUIP ---
+equipButton.MouseButton1Click:Connect(function()
+    if not selectedWeapon then warn("--> MasterEquipperGUI_V22: No weapon selected."); return end
+    
+    local weaponInfo = masterWeaponMap[selectedWeapon]
+    if weaponInfo.type == "variant" then
+        print(string.format("--> PROTOCOL A (1/2): Firing 'equipItem' with base: '%s'", weaponInfo.base)); EQUIP_ITEM_REMOTE:InvokeServer(weaponInfo.base)
+        task.wait(0.1)
+        print(string.format("--> PROTOCOL A (2/2): Firing 'renderVariant' with variant: '%s'", selectedWeapon)); RENDER_VARIANT_REMOTE:FireServer(selectedWeapon)
+    elseif weaponInfo.type == "base" then
+        local rootPart = LOCAL_PLAYER.Character and LOCAL_PLAYER.Character:FindFirstChild("HumanoidRootPart")
+        if not rootPart then warn("--> MasterEquipperGUI_V22: Cannot find HumanoidRootPart."); return end
+        
+        local selectedPerks = {}; for perkName, data in pairs(perkCheckboxes) do if data.Enabled then table.insert(selectedPerks, { perkName, 49 }) end end
+        local weaponAttributes = {}; for attrName, data in pairs(attributeCheckboxes) do if data.Enabled then weaponAttributes[attrName] = true end end
+        local weaponData = { ["perkData"] = selectedPerks, ["rarity"] = "standard", ["level"] = math.clamp(tonumber(levelInput.Text) or 200, 1, 200), ["attributes"] = weaponAttributes }
+        
+        --// [THE V22 FIX] Changed :FireServer to :InvokeServer to match the RemoteFunction's API.
+        print(string.format("--> PROTOCOL B (1/2): Invoking '%s' to prime '%s'", PRIME_WEAPON_DATA.Name, selectedWeapon)); 
+        PRIME_WEAPON_DATA:InvokeServer(selectedWeapon, weaponData, rootPart.Position)
+        
+        task.wait(0.1) 
+        print(string.format("--> PROTOCOL B (2/2): Requesting primed weapon via 'equipItem'")); 
+        EQUIP_ITEM_REMOTE:InvokeServer(selectedWeapon)
+    end
+end)
+
+--// --- TOGGLE FUNCTIONALITY ---
+local function toggleGui()
+    guiVisible = not guiVisible; mainFrame.Visible = guiVisible
+    if guiVisible then populateGui() end
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode.RightControl then toggleGui() end
+end)
+
+--// --- INITIALIZATION ---
+buildMasterData()
+print("--- MasterEquipperGUI_V22 (API Invocation Fix) Initialized ---")
+print(string.format("--> Successfully hooked priming remote function: '%s'", PRIME_WEAPON_DATA.Name))
+print("--> Press [RIGHT CONTROL] to toggle.")
