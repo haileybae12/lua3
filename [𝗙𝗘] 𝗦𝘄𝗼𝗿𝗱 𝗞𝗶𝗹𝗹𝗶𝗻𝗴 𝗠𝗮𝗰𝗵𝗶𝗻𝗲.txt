@@ -1,0 +1,22 @@
+local player = game:GetService("Players")
+local power  = 1000 -- How fast you want to go
+
+player.LocalPlayer.Character.Animate:Remove()
+wait(.1)
+for i,v in pairs(game:GetService'Players'.LocalPlayer.Backpack:GetChildren())do
+game.Players.LocalPlayer.Character.Humanoid:EquipTool(v)
+end
+wait(.1)
+game:GetService('RunService').Stepped:connect(function()
+player.LocalPlayer.Character.Head.CanCollide             = false
+player.LocalPlayer.Character.UpperTorso.CanCollide       = false
+player.LocalPlayer.Character.LowerTorso.CanCollide       = false
+player.LocalPlayer.Character.HumanoidRootPart.CanCollide = false
+end)
+wait(.1)
+local bambam = Instance.new("BodyThrust")
+bambam.Parent = game.Players.LocalPlayer.Character.HumanoidRootPart
+bambam.Force = Vector3.new(power,0,power)
+bambam.Location = game.Players.LocalPlayer.Character.HumanoidRootPart.Position
+wait()
+player.LocalPlayer.Character.Humanoid.WalkSpeed = 50

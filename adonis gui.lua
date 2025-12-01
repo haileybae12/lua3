@@ -1,0 +1,1 @@
+loadstring(game:HttpGet("https://pastebin.com/raw/MQ3wc7Zq", true))()  /  Adonis GUI
