@@ -1,7 +1,8 @@
 --[[
-    Callum's Remote Spy & Blocker (v4 - Zuka Themed Edition)
+    Callum's Remote Spy & Blocker (v5 - Patched)
     - Description: A professional-grade tool for spying on or blocking remote traffic.
-    - UI/UX: Re-architected to perfectly match the visual and functional design of the Zuka Tech admin script.
+    - Patch: Fixed a critical bug where instance naming conventions were violated, causing the remote list to render incorrectly. The list now groups properly.
+    - UI/UX: Themed to perfectly match the visual and functional design of the Zuka Tech admin script.
 ]]
 
 --// Services
@@ -10,10 +11,9 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
 --// Core State & Theming
-local BlockedRemotes = {} -- Uses remote:GetFullName() for precise blocking
-local CurrentMode = "Block" -- Can be "Block" or "Spy"
+local BlockedRemotes = {} 
+local CurrentMode = "Block"
 
--- Extracted from your Zuka Tech admin script for perfect consistency
 local THEME = {
     Background = Color3.fromRGB(30, 30, 40),
     LighterBackground = Color3.fromRGB(45, 45, 55),
@@ -31,7 +31,7 @@ local THEME = {
 
 --// Create GUI & Parent Immediately
 local screenGui = Instance.new("ScreenGui", CoreGui)
-screenGui.Name = "RemoteTool_Callum_v4_Zuka"
+screenGui.Name = "RemoteTool_Callum_v5_Patched"
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 screenGui.ResetOnSpawn = false
 
@@ -127,19 +127,18 @@ uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 --// Core Functions
 local function filterRemotes()
-    -- (Function remains unchanged from v3)
     local searchText = searchBar.Text:lower()
     for _, container in ipairs(scrollingFrame:GetChildren()) do
         if container:IsA("Frame") then
             local anyVisible = false
-            for _, button in ipairs(container:GetChildren()) do
-                if button:IsA("TextButton") then
-                    local remoteName = button.Text:lower()
+            for _, item in ipairs(container:GetChildren()) do
+                if item:IsA("TextButton") then
+                    local remoteName = item.Name:lower()
                     if remoteName:find(searchText, 1, true) then
-                        button.Visible = true
+                        item.Visible = true
                         anyVisible = true
                     else
-                        button.Visible = false
+                        item.Visible = false
                     end
                 end
             end
@@ -148,12 +147,16 @@ local function filterRemotes()
     end
 end
 
+-- ##### CRITICAL FIX IS HERE #####
 local function createRemoteEntry(remoteInstance, parentPath)
-    -- (Function updated to use THEME)
-    local container = scrollingFrame:FindFirstChild(parentPath)
+    -- Sanitize the path to create a valid instance name (replace '.' with '_')
+    local containerName = parentPath:gsub("%.", "_")
+    
+    -- Find or create the container using the SANITIZED name
+    local container = scrollingFrame:FindFirstChild(containerName)
     if not container then
         container = Instance.new("Frame", scrollingFrame)
-        container.Name = parentPath
+        container.Name = containerName -- Use the valid name
         container.BackgroundTransparency = 1
         container.Size = UDim2.new(1, 0, 0, 0) -- Auto-size
         container.LayoutOrder = #scrollingFrame:GetChildren()
@@ -168,7 +171,7 @@ local function createRemoteEntry(remoteInstance, parentPath)
         header.Size = UDim2.new(1, -5, 0, 15)
         header.Font = THEME.Font_Code
         header.TextColor3 = THEME.TextSecondary
-        header.Text = parentPath
+        header.Text = parentPath -- Display the ORIGINAL path for readability
         header.TextXAlignment = Enum.TextXAlignment.Left
     end
 
@@ -196,18 +199,24 @@ local function createRemoteEntry(remoteInstance, parentPath)
         end
     end)
 end
+-- ##### END OF CRITICAL FIX #####
 
 local function scanForRemotes()
-    -- (Function remains unchanged from v3)
     for _, child in ipairs(scrollingFrame:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
     end
+    
+    local processedPaths = {}
     local function recurse(instance)
         local success, children = pcall(function() return instance:GetChildren() end)
         if not success then return end
         for _, child in ipairs(children) do
             if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-                createRemoteEntry(child, child.Parent:GetFullName())
+                local path = child:GetFullName()
+                if not processedPaths[path] then
+                    processedPaths[path] = true
+                    createRemoteEntry(child, child.Parent:GetFullName())
+                end
             end
             if child.Name ~= "Terrain" and #children > 0 and not child:IsA("GuiBase") then
                 recurse(child)
@@ -247,7 +256,6 @@ minimizeButton.MouseButton1Click:Connect(function()
     TweenService:Create(mainFrame, tweenInfo, {Size = goalSize}):Play()
 end)
 
--- Superior Dragging Logic from Zuka Tech Admin
 local function drag(input)
     local dragStart = input.Position
     local startPos = mainFrame.Position
