@@ -1,7 +1,7 @@
 --[[
-    Callum's Remote Spy & Blocker
+    Callum's Remote Spy & Blocker (v2 - Robust)
     - Description: A GUI-based tool to dynamically find and block RemoteEvents and RemoteFunctions.
-    - Features: Draggable UI, real-time remote discovery, and an optimized namecall hook.
+    - Changes: Ensured GUI always appears by parenting early and wrapping the hook in a pcall for stability.
 ]]
 
 --// Services & Core Variables
@@ -9,14 +9,14 @@ local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 
 local BlockedRemotes = {} -- Using a dictionary for O(1) lookups
-local Metatable = getrawmetatable(game)
-local OriginalNamecall = Metatable.__namecall
 
---// Create the GUI
+--// Create the GUI & Parent Immediately
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RemoteBlocker_Callum"
+screenGui.Name = "RemoteBlocker_Callum_v2"
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 screenGui.ResetOnSpawn = false
+-- Parent the GUI right away to ensure it always appears.
+screenGui.Parent = CoreGui
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
@@ -38,7 +38,6 @@ titleBar.Parent = mainFrame
 
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "TitleLabel"
-titleLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Size = UDim2.new(1, -100, 1, 0)
 titleLabel.Font = Enum.Font.SourceSansBold
@@ -110,7 +109,6 @@ local function createRemoteButton(remoteInstance)
 end
 
 local function scanForRemotes()
-    -- Clear previous results
     for _, child in ipairs(scrollingFrame:GetChildren()) do
         if child:IsA("TextButton") then
             child:Destroy()
@@ -129,8 +127,7 @@ local function scanForRemotes()
                     createRemoteButton(child)
                 end
             end
-            -- Avoid unnecessarily deep or restricted recursion
-            if child.Name ~= "Terrain" and #child:GetChildren() > 0 then
+            if child.Name ~= "Terrain" and #children > 0 then
                 recurse(child)
             end
         end
@@ -150,22 +147,27 @@ end)
 
 refreshButton.MouseButton1Click:Connect(scanForRemotes)
 
---// The Namecall Hook
-setreadonly(Metatable, false)
-Metatable.__namecall = newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    -- We only care about client-to-server invocations
-    if (method == "FireServer" or method == "InvokeServer") and not checkcaller() then
-        -- Check if the remote's name is in our block list (O(1) lookup)
-        if BlockedRemotes[self.Name] then
-            return nil -- Block the call
-        end
-    end
-    return OriginalNamecall(self, ...)
-end)
-setreadonly(Metatable, true)
+--// The Namecall Hook (Protected Call)
+local hookSuccess, hookError = pcall(function()
+    local Metatable = getrawmetatable(game)
+    local OriginalNamecall = Metatable.__namecall
 
---// Finalize
-CoreGui:SetTopbarTransparency(0) -- A common preference
-screenGui.Parent = CoreGui
-scanForRemotes() -- Initial scan
+    setreadonly(Metatable, false)
+    Metatable.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if (method == "FireServer" or method == "InvokeServer") and not checkcaller() then
+            if BlockedRemotes[self.Name] then
+                return nil
+            end
+        end
+        return OriginalNamecall(self, ...)
+    end)
+    setreadonly(Metatable, true)
+end)
+
+if not hookSuccess then
+    warn("Callum's Remote Blocker: Failed to create __namecall hook. Remote blocking will be disabled.", hookError)
+end
+
+--// Initial Scan
+scanForRemotes()
