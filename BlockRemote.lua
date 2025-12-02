@@ -1,106 +1,125 @@
 --[[
-    Callum's Remote Spy & Blocker (v3 - Architect Edition)
+    Callum's Remote Spy & Blocker (v4 - Zuka Themed Edition)
     - Description: A professional-grade tool for spying on or blocking remote traffic.
-    - Features: Spy/Block modes, live search filter, unique path-based blocking, and a grouped/hierarchical UI.
+    - UI/UX: Re-architected to perfectly match the visual and functional design of the Zuka Tech admin script.
 ]]
 
 --// Services
 local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
---// Core State
+--// Core State & Theming
 local BlockedRemotes = {} -- Uses remote:GetFullName() for precise blocking
 local CurrentMode = "Block" -- Can be "Block" or "Spy"
 
+-- Extracted from your Zuka Tech admin script for perfect consistency
+local THEME = {
+    Background = Color3.fromRGB(30, 30, 40),
+    LighterBackground = Color3.fromRGB(45, 45, 55),
+    Stroke = Color3.fromRGB(80, 80, 100),
+    Text = Color3.fromRGB(255, 255, 255),
+    TextSecondary = Color3.fromRGB(150, 150, 160),
+    Accent = Color3.fromRGB(0, 255, 255),
+    ListItem = Color3.fromRGB(50, 50, 65),
+    Blocked = Color3.fromRGB(255, 60, 60),
+    Spy = Color3.fromRGB(60, 120, 180),
+    Font_Title = Enum.Font.GothamSemibold,
+    Font_Body = Enum.Font.Gotham,
+    Font_Code = Enum.Font.Code,
+}
+
 --// Create GUI & Parent Immediately
 local screenGui = Instance.new("ScreenGui", CoreGui)
-screenGui.Name = "RemoteTool_Callum_v3"
+screenGui.Name = "RemoteTool_Callum_v4_Zuka"
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 screenGui.ResetOnSpawn = false
 
--- Main Container
+-- Main Container (Zuka Style)
 local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Name = "MainFrame"
-mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-mainFrame.BorderColor3 = Color3.fromRGB(80, 80, 100)
-mainFrame.BorderSizePixel = 2
-mainFrame.Position = UDim2.fromScale(0.5, 0.5)
+mainFrame.Size = UDim2.fromOffset(450, 350)
 mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-mainFrame.Size = UDim2.new(0, 450, 0, 350)
-mainFrame.Active = true
-mainFrame.Draggable = true
+mainFrame.Position = UDim2.fromScale(0.5, 0.5)
+mainFrame.BackgroundColor3 = THEME.Background
+mainFrame.BackgroundTransparency = 0.15
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
 
--- Title Bar
-local titleBar = Instance.new("Frame", mainFrame)
-titleBar.Name = "TitleBar"
-titleBar.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
-titleBar.BorderSizePixel = 0
-titleBar.Size = UDim2.new(1, 0, 0, 30)
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", mainFrame).Color = THEME.Stroke
 
-local titleLabel = Instance.new("TextLabel", titleBar)
-titleLabel.Name = "TitleLabel"
-titleLabel.BackgroundTransparency = 1
-titleLabel.Size = UDim2.new(1, -150, 1, 0)
-titleLabel.Font = Enum.Font.SourceSansSemibold
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.Text = "Remote Tool v3"
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-titleLabel.Position = UDim2.new(0, 10, 0, 0)
+local gradient = Instance.new("UIGradient", mainFrame)
+gradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, THEME.LighterBackground),
+    ColorSequenceKeypoint.new(1, THEME.Background)
+})
 
--- Control Buttons
-local scanButton = Instance.new("TextButton", titleBar)
-scanButton.Name = "ScanButton"
-scanButton.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
-scanButton.Size = UDim2.new(0, 50, 0, 20)
-scanButton.Position = UDim2.new(1, -140, 0.5, -10)
-scanButton.Font = Enum.Font.SourceSans
-scanButton.Text = "Scan"
-scanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+-- Title & Controls (Integrated Zuka Style)
+local title = Instance.new("TextLabel", mainFrame)
+title.Name = "Title"
+title.Size = UDim2.new(1, 0, 0, 40)
+title.BackgroundTransparency = 1
+title.Font = THEME.Font_Title
+title.Text = "Remote Tool"
+title.TextColor3 = THEME.Text
+title.TextSize = 20
 
-local modeButton = Instance.new("TextButton", titleBar)
+local modeButton = Instance.new("TextButton", mainFrame)
 modeButton.Name = "ModeButton"
-modeButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-modeButton.Size = UDim2.new(0, 50, 0, 20)
-modeButton.Position = UDim2.new(1, -85, 0.5, -10)
-modeButton.Font = Enum.Font.SourceSans
+modeButton.Size = UDim2.fromOffset(50, 25)
+modeButton.Position = UDim2.new(1, -85, 0, 8)
+modeButton.AnchorPoint = Vector2.new(1, 0)
+modeButton.BackgroundColor3 = THEME.Blocked
+modeButton.Font = THEME.Font_Body
 modeButton.Text = "Block"
-modeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+modeButton.TextColor3 = THEME.Text
+modeButton.TextSize = 14
+Instance.new("UICorner", modeButton).CornerRadius = UDim.new(0, 4)
 
-local toggleButton = Instance.new("TextButton", titleBar)
-toggleButton.Name = "ToggleButton"
-toggleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
-toggleButton.Size = UDim2.new(0, 20, 0, 20)
-toggleButton.Position = UDim2.new(1, -25, 0.5, -10)
-toggleButton.Font = Enum.Font.SourceSansBold
-toggleButton.Text = "-"
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+local scanButton = Instance.new("TextButton", mainFrame)
+scanButton.Name = "ScanButton"
+scanButton.Size = UDim2.fromOffset(50, 25)
+scanButton.Position = UDim2.new(1, -140, 0, 8)
+scanButton.AnchorPoint = Vector2.new(1, 0)
+scanButton.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+scanButton.Font = THEME.Font_Body
+scanButton.Text = "Scan"
+scanButton.TextColor3 = THEME.Text
+scanButton.TextSize = 14
+Instance.new("UICorner", scanButton).CornerRadius = UDim.new(0, 4)
+
+local minimizeButton = Instance.new("TextButton", mainFrame)
+minimizeButton.Name = "MinimizeButton"
+minimizeButton.Size = UDim2.fromOffset(25, 25)
+minimizeButton.AnchorPoint = Vector2.new(1, 0)
+minimizeButton.Position = UDim2.new(1, -10, 0, 8)
+minimizeButton.BackgroundTransparency = 1
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.Text = "—"
+minimizeButton.TextColor3 = THEME.Text
+minimizeButton.TextSize = 20
 
 -- Content Area
-local contentFrame = Instance.new("Frame", mainFrame)
-contentFrame.Name = "ContentFrame"
-contentFrame.BackgroundTransparency = 1
-contentFrame.Position = UDim2.new(0, 0, 0, 30)
-contentFrame.Size = UDim2.new(1, 0, 1, -30)
-
-local searchBar = Instance.new("TextBox", contentFrame)
+local searchBar = Instance.new("TextBox", mainFrame)
 searchBar.Name = "SearchBar"
-searchBar.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+searchBar.Size = UDim2.new(1, -20, 0, 28)
+searchBar.Position = UDim2.fromOffset(10, 40)
+searchBar.BackgroundColor3 = THEME.LighterBackground
 searchBar.BorderColor3 = Color3.fromRGB(25, 25, 35)
-searchBar.Size = UDim2.new(1, -10, 0, 25)
-searchBar.Position = UDim2.new(0.5, 0, 0, 5)
-searchBar.AnchorPoint = Vector2.new(0.5, 0)
-searchBar.Font = Enum.Font.Code
-searchBar.PlaceholderText = "Filter by name..."
-searchBar.TextColor3 = Color3.fromRGB(220, 220, 220)
+searchBar.Font = THEME.Font_Code
+searchBar.PlaceholderText = "Filter remotes..."
+searchBar.TextColor3 = THEME.Text
 searchBar.ClearTextOnFocus = false
+Instance.new("UICorner", searchBar).CornerRadius = UDim.new(0, 4)
 
-local scrollingFrame = Instance.new("ScrollingFrame", contentFrame)
-scrollingFrame.Name = "RemoteList"
-scrollingFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+local scrollingFrame = Instance.new("ScrollingFrame", mainFrame)
+scrollingFrame.Name = "ScrollingFrame"
+scrollingFrame.Size = UDim2.new(1, -20, 1, -78)
+scrollingFrame.Position = UDim2.fromOffset(10, 68)
+scrollingFrame.BackgroundTransparency = 1
 scrollingFrame.BorderSizePixel = 0
-scrollingFrame.Position = UDim2.new(0, 5, 0, 35)
-scrollingFrame.Size = UDim2.new(1, -10, 1, -40)
-scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-scrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 140)
+scrollingFrame.ScrollBarThickness = 5
 
 local uiListLayout = Instance.new("UIListLayout", scrollingFrame)
 uiListLayout.Padding = UDim.new(0, 8)
@@ -108,6 +127,7 @@ uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 --// Core Functions
 local function filterRemotes()
+    -- (Function remains unchanged from v3)
     local searchText = searchBar.Text:lower()
     for _, container in ipairs(scrollingFrame:GetChildren()) do
         if container:IsA("Frame") then
@@ -129,6 +149,7 @@ local function filterRemotes()
 end
 
 local function createRemoteEntry(remoteInstance, parentPath)
+    -- (Function updated to use THEME)
     local container = scrollingFrame:FindFirstChild(parentPath)
     if not container then
         container = Instance.new("Frame", scrollingFrame)
@@ -145,47 +166,45 @@ local function createRemoteEntry(remoteInstance, parentPath)
         header.Name = "Header"
         header.BackgroundTransparency = 1
         header.Size = UDim2.new(1, -5, 0, 15)
-        header.Font = Enum.Font.Code
-        header.TextColor3 = Color3.fromRGB(150, 150, 160)
+        header.Font = THEME.Font_Code
+        header.TextColor3 = THEME.TextSecondary
         header.Text = parentPath
         header.TextXAlignment = Enum.TextXAlignment.Left
     end
 
     local button = Instance.new("TextButton")
     button.Name = remoteInstance.Name
-    button.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-    button.Size = UDim2.new(1, -5, 0, 25)
-    button.Font = Enum.Font.Code
+    button.BackgroundColor3 = THEME.ListItem
+    button.Size = UDim2.new(1, 0, 0, 25)
+    button.Font = THEME.Font_Code
     button.Text = "  " .. remoteInstance.Name .. " (" .. remoteInstance.ClassName:sub(1, 6) .. ")"
-    button.TextColor3 = Color3.fromRGB(220, 220, 220)
+    button.TextColor3 = THEME.Text
     button.TextXAlignment = Enum.TextXAlignment.Left
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 4)
     button.Parent = container
 
     button.MouseButton1Click:Connect(function()
         local fullName = remoteInstance:GetFullName()
         if BlockedRemotes[fullName] then
             BlockedRemotes[fullName] = nil
-            button.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-            button.TextColor3 = Color3.fromRGB(220, 220, 220)
+            button.BackgroundColor3 = THEME.ListItem
+            button.TextColor3 = THEME.Text
         else
             BlockedRemotes[fullName] = true
-            button.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            button.BackgroundColor3 = THEME.Blocked
+            button.TextColor3 = THEME.Text
         end
     end)
 end
 
 local function scanForRemotes()
+    -- (Function remains unchanged from v3)
     for _, child in ipairs(scrollingFrame:GetChildren()) do
-        if child:IsA("Frame") then
-            child:Destroy()
-        end
+        if child:IsA("Frame") then child:Destroy() end
     end
-
     local function recurse(instance)
         local success, children = pcall(function() return instance:GetChildren() end)
         if not success then return end
-
         for _, child in ipairs(children) do
             if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
                 createRemoteEntry(child, child.Parent:GetFullName())
@@ -196,7 +215,7 @@ local function scanForRemotes()
         end
     end
     recurse(game)
-    filterRemotes() -- Apply filter after scan
+    filterRemotes()
 end
 
 --// GUI Interactivity
@@ -207,20 +226,49 @@ modeButton.MouseButton1Click:Connect(function()
     if CurrentMode == "Block" then
         CurrentMode = "Spy"
         modeButton.Text = "Spy"
-        modeButton.BackgroundColor3 = Color3.fromRGB(60, 120, 180)
+        modeButton.BackgroundColor3 = THEME.Spy
     else
         CurrentMode = "Block"
         modeButton.Text = "Block"
-        modeButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        modeButton.BackgroundColor3 = THEME.Blocked
     end
 end)
 
-local isVisible = true
-toggleButton.MouseButton1Click:Connect(function()
-    isVisible = not isVisible
-    contentFrame.Visible = isVisible
-    mainFrame.Size = isVisible and UDim2.new(0, 450, 0, 350) or UDim2.new(0, 450, 0, 30)
-    toggleButton.Text = isVisible and "-" or "+"
+local isMinimized = false
+minimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local goalSize = isMinimized and UDim2.fromOffset(mainFrame.AbsoluteSize.X, 40) or UDim2.fromOffset(mainFrame.AbsoluteSize.X, 350)
+    
+    scrollingFrame.Visible = not isMinimized
+    searchBar.Visible = not isMinimized
+    minimizeButton.Text = isMinimized and "+" or "—"
+    
+    TweenService:Create(mainFrame, tweenInfo, {Size = goalSize}):Play()
+end)
+
+-- Superior Dragging Logic from Zuka Tech Admin
+local function drag(input)
+    local dragStart = input.Position
+    local startPos = mainFrame.Position
+    local moveConn, endConn
+    moveConn = UserInputService.InputChanged:Connect(function(moveInput)
+        if moveInput.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = moveInput.Position - dragStart
+            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    endConn = UserInputService.InputEnded:Connect(function(endInput)
+        if endInput.UserInputType == Enum.UserInputType.MouseButton1 then
+            moveConn:Disconnect()
+            endConn:Disconnect()
+        end
+    end)
+end
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        drag(input)
+    end
 end)
 
 --// The Namecall Hook
@@ -233,12 +281,10 @@ local hookSuccess, hookError = pcall(function()
         local method = getnamecallmethod()
         if (method == "FireServer" or method == "InvokeServer") and not checkcaller() then
             if CurrentMode == "Spy" then
-                -- In Spy mode, we log the call and its arguments, then let it pass
-                print("SPY:", self:GetFullName(), ...)
+                print("SPY:", self:GetFullName(), table.unpack({...}))
             elseif CurrentMode == "Block" then
-                -- In Block mode, we check our precise list and block if necessary
                 if BlockedRemotes[self:GetFullName()] then
-                    return nil -- Blocked
+                    return nil
                 end
             end
         end
