@@ -1,7 +1,7 @@
 --[[
-    Callum's Remote Spy & Blocker (v5 - Patched)
+    Callum's Remote Spy & Blocker (v6 - UI Layout Hotfix)
     - Description: A professional-grade tool for spying on or blocking remote traffic.
-    - Patch: Fixed a critical bug where instance naming conventions were violated, causing the remote list to render incorrectly. The list now groups properly.
+    - Patch: Rearchitected the UI list generation. Implemented UIAutomaticSize to fix the critical bug causing overlapping text, ensuring each remote entry is perfectly spaced and readable.
     - UI/UX: Themed to perfectly match the visual and functional design of the Zuka Tech admin script.
 ]]
 
@@ -11,7 +11,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
 --// Core State & Theming
-local BlockedRemotes = {} 
+local BlockedRemotes = {}
 local CurrentMode = "Block"
 
 local THEME = {
@@ -31,7 +31,7 @@ local THEME = {
 
 --// Create GUI & Parent Immediately
 local screenGui = Instance.new("ScreenGui", CoreGui)
-screenGui.Name = "RemoteTool_Callum_v5_Patched"
+screenGui.Name = "RemoteTool_Callum_v6_Fixed"
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 screenGui.ResetOnSpawn = false
 
@@ -125,6 +125,13 @@ local uiListLayout = Instance.new("UIListLayout", scrollingFrame)
 uiListLayout.Padding = UDim.new(0, 8)
 uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
+-- ##### ARCHITECTURAL FIX 2: AUTOMATIC CANVAS SIZING #####
+-- This connection ensures the scrollable area is always the correct size.
+uiListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y)
+end)
+-- ##### END OF FIX #####
+
 --// Core Functions
 local function filterRemotes()
     local searchText = searchBar.Text:lower()
@@ -147,23 +154,26 @@ local function filterRemotes()
     end
 end
 
--- ##### CRITICAL FIX IS HERE #####
 local function createRemoteEntry(remoteInstance, parentPath)
-    -- Sanitize the path to create a valid instance name (replace '.' with '_')
     local containerName = parentPath:gsub("%.", "_")
     
-    -- Find or create the container using the SANITIZED name
     local container = scrollingFrame:FindFirstChild(containerName)
     if not container then
         container = Instance.new("Frame", scrollingFrame)
-        container.Name = containerName -- Use the valid name
+        container.Name = containerName
         container.BackgroundTransparency = 1
-        container.Size = UDim2.new(1, 0, 0, 0) -- Auto-size
+        container.Size = UDim2.new(1, 0, 0, 0) -- Start at 0 height, UIAutomaticSize will handle the rest
         container.LayoutOrder = #scrollingFrame:GetChildren()
         
         local list = Instance.new("UIListLayout", container)
         list.Padding = UDim.new(0, 2)
         list.SortOrder = Enum.SortOrder.Name
+
+        -- ##### ARCHITECTURAL FIX 1: DYNAMIC CONTAINER SIZING #####
+        -- This instance forces the container frame to resize vertically to fit its contents.
+        local autoSizer = Instance.new("UIAutomaticSize", container)
+        autoSizer.AutomaticSize = Enum.AutomaticSize.Y
+        -- ##### END OF FIX #####
 
         local header = Instance.new("TextLabel", container)
         header.Name = "Header"
@@ -171,7 +181,7 @@ local function createRemoteEntry(remoteInstance, parentPath)
         header.Size = UDim2.new(1, -5, 0, 15)
         header.Font = THEME.Font_Code
         header.TextColor3 = THEME.TextSecondary
-        header.Text = parentPath -- Display the ORIGINAL path for readability
+        header.Text = parentPath
         header.TextXAlignment = Enum.TextXAlignment.Left
     end
 
@@ -191,15 +201,12 @@ local function createRemoteEntry(remoteInstance, parentPath)
         if BlockedRemotes[fullName] then
             BlockedRemotes[fullName] = nil
             button.BackgroundColor3 = THEME.ListItem
-            button.TextColor3 = THEME.Text
         else
             BlockedRemotes[fullName] = true
             button.BackgroundColor3 = THEME.Blocked
-            button.TextColor3 = THEME.Text
         end
     end)
 end
--- ##### END OF CRITICAL FIX #####
 
 local function scanForRemotes()
     for _, child in ipairs(scrollingFrame:GetChildren()) do
@@ -289,7 +296,13 @@ local hookSuccess, hookError = pcall(function()
         local method = getnamecallmethod()
         if (method == "FireServer" or method == "InvokeServer") and not checkcaller() then
             if CurrentMode == "Spy" then
-                print("SPY:", self:GetFullName(), table.unpack({...}))
+                -- For Spy mode, convert arguments to strings for safe printing
+                local args = {...}
+                local argStrings = {}
+                for i, v in ipairs(args) do
+                    argStrings[i] = tostring(v)
+                end
+                print("SPY:", self:GetFullName(), table.unpack(argStrings))
             elseif CurrentMode == "Block" then
                 if BlockedRemotes[self:GetFullName()] then
                     return nil
